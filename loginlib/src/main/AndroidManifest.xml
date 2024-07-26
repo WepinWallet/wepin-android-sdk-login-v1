@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.wepin.android.loginlib">
+
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+<!--    <queries>-->
+
+<!--        &lt;!&ndash; 네이버앱 : 로그인, 스킴로그인 &ndash;&gt;-->
+<!--        <package android:name="com.nhn.android.search" />-->
+<!--        &lt;!&ndash; 커스텀탭 로그인 &ndash;&gt;-->
+<!--        <intent>-->
+<!--            <action android:name="android.support.customtabs.action.CustomTabsService" />-->
+<!--        </intent>-->
+
+<!--        <package android:name="com.android.chrome" />-->
+<!--    </queries>-->
+
+    <application>
+<!--        <activity-->
+<!--            android:name=".NaverRedirectUriRecieverActivity"-->
+<!--            android:exported="false" />-->
+<!--        <activity-->
+<!--            android:name=".NaverRedirectUriRecieverActivity"-->
+<!--            android:theme="@style/Theme.AppCompat.NoActionBar"-->
+<!--            android:configChanges="orientation|screenSize"-->
+<!--            android:screenOrientation="behind"-->
+<!--            android:launchMode="singleTask"-->
+<!--            android:label="OAuth2.0 by Custom tabs"-->
+<!--            android:exported="true">-->
+<!--&lt;!&ndash;            <intent-filter>&ndash;&gt;-->
+<!--&lt;!&ndash;                <action android:name="android.intent.action.VIEW" />&ndash;&gt;-->
+<!--&lt;!&ndash;                <category android:name="android.intent.category.DEFAULT" />&ndash;&gt;-->
+<!--&lt;!&ndash;                <category android:name="android.intent.category.BROWSABLE" />&ndash;&gt;-->
+<!--&lt;!&ndash;                        &lt;!&ndash; Intent URL 에서 로그인 액티비티를 실행하기 위해 설정&ndash;&gt;&ndash;&gt;-->
+<!--&lt;!&ndash;                <data&ndash;&gt;-->
+<!--&lt;!&ndash;                    android:scheme="naver3rdpartylogin"&ndash;&gt;-->
+<!--&lt;!&ndash;                    android:host="authorize"&ndash;&gt;-->
+<!--&lt;!&ndash;                    android:path="/"/>&ndash;&gt;-->
+<!--&lt;!&ndash;            </intent-filter>&ndash;&gt;-->
+<!--        </activity>-->
+        <activity
+            android:name=".RedirectUriReceiverActivity"
+            android:screenOrientation="behind"
+            android:exported="true" />
+        <activity
+            android:name=".WepinLoginMainActivity"
+            android:screenOrientation="behind"
+            android:exported="true" />
+        <activity
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
+            android:screenOrientation="behind"
+            android:exported="true" />
+    </application>
+
+</manifest>

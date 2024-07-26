@@ -1,0 +1,14 @@
+package com.wepin.android.loginlib.types.network.firebase
+
+
+sealed class GetRefreshIdTokenResponse
+
+internal data class GetRefreshIdTokenSuccess (
+    var expires_in: String,
+    var token_type: String,
+    var refresh_token: String,
+    var id_token: String,
+    var user_id: String,
+    var project_id: String,
+)
+

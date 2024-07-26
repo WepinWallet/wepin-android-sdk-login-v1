@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">Sample Login Library</string>
+    <string name="result">Result</string>
+    <string name="default_result">Your long text goes here…</string>
+    <string name="item_init">init</string>
+    <string name="item_isInitialized">isInitialized</string>
+    <string name="item_email_signup">Email Signup</string>
+    <string name="item_email_login">Email Login</string>
+    <string name="item_oauth_google_login">Oauth Login(Google)</string>
+    <string name="item_oauth_discord_login">Oauth Login(Discord)</string>
+    <string name="item_oauth_apple_login">Oauth Login(Apple)</string>
+    <string name="item_oauth_naver_login">Oauth Login(Naver)</string>
+    <string name="item_idToken_google_login">IdToken Login(Google)</string>
+    <string name="item_idToken_apple_login">IdToken Login(Apple)</string>
+    <string name="item_accessToken_discord_login">AccessToken Login(Discord)</string>
+    <string name="item_accessToken_naver_login">AccessToken Login(Naver)</string>
+    <string name="item_getRefreshFirbaseToken">RefreshFirebaseToken</string>
+    <string name="item_wepin_login">Wepin Login</string>
+    <string name="item_wepin_logout">Wepin Logout</string>
+    <string name="item_getWepinUser">Get WepinUser</string>
+    <string name="item_sign_token">getSignForLogin</string>
+    <string name="item_finalize">Finalize</string>
+
+    <string name="default_google_web_client_id">GOOGLE_WEB_CLIENT_ID</string>
+    <string name="default_discord_client_id">DISCORD_CLIENT_ID</string>
+    <string name="default_naver_client_id">NAVER_CLIENT_ID</string>
+    <string name="default_apple_client_id">APPLE_SERVICE_ID</string>
+    <string name="wepin_app_id">WEPIN_APP_ID</string>
+    <string name="wepin_app_key">WEPIN_APP_KEY</string>
+    <string name="wepin_app_private_key">WEPIN_APP_PRIVATE_KEY</string>
+
+</resources>
