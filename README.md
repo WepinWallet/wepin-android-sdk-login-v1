@@ -12,7 +12,7 @@
 <br>
 
 
-# wepin-android-sdk-login-v1
+# Wepin Android SDK Login Library v1
 
 [![platform - android](https://img.shields.io/badge/platform-Android-3ddc84.svg?logo=android&style=for-the-badge)](https://www.android.com/)
 
