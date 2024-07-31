@@ -72,6 +72,7 @@ android.defaultConfig.manifestPlaceholders = [
 Add the below line in your app's AndroidManifest.xml file
 
 ```xml
+<activity
   android:name="com.wepin.android.loginlib.RedirectUriReceiverActivity"
   android:exported="true">
   <intent-filter>
