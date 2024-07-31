@@ -697,33 +697,35 @@ The `logoutWepin()` method logs out the user logged into Wepin.
 - [Wepin Error](#wepin-error)
 
 #### Example
-```java
-CompletableFuture<Boolean> res = wepinLogin.logoutWepin();
-res.whenComplete((logoutResponse, error) -> {
-  if (error == null) {
-      System.out.println("logoutResponse: " + logoutResponse);
-  } else {
-      // render error UI
-      System.out.println("logout error" + error.getMessage())
-  }
-});
-```
+- java
+  ```java
+  CompletableFuture<Boolean> res = wepinLogin.logoutWepin();
+  res.whenComplete((logoutResponse, error) -> {
+    if (error == null) {
+        System.out.println("logoutResponse: " + logoutResponse);
+    } else {
+        // render error UI
+        System.out.println("logout error" + error.getMessage())
+    }
+  });
+  ```
 
-```kotlin
-wepinLogin.logoutWepin().whenComplete { logoutResponse, error ->
-  if (error == null) {
-      println(logoutResponse)
-  } else {
-      println("logout error - ${error.message}")
-      // render error UI
+- kotlin
+  ```kotlin
+  wepinLogin.logoutWepin().whenComplete { logoutResponse, error ->
+    if (error == null) {
+        println(logoutResponse)
+    } else {
+        println("logout error - ${error.message}")
+        // render error UI
+    }
   }
-}
-```
+  ```
 
 ### getSignForLogin
 Generates signatures to verify the issuer. It is mainly used to generate signatures for login-related information such as ID tokens and access tokens.
 
-```kotlin
+```java
 wepinLogin.getSignForLogin(privKey, message);
 ```
 
@@ -766,10 +768,14 @@ The `finalize()` method finalizes the Wepin Login Library.
  - void
 
 #### Example
-```java
-wepinLogin.finalize()
-```
-
+- java
+  ```java
+  wepinLogin.finalize()
+  ```
+- kotlin
+  ```kotlin
+  wepinLogin.finalize()
+  ```
 
 ### Wepin Error
 | Error Code                   | Error Message                      | Error Description                                                                                   |
