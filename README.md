@@ -526,12 +526,13 @@ This method logs the user into the Wepin application using the specified provide
 
 #### Parameters
 The parameters should utilize the return values from the `loginWithEmailAndPassword()`, `loginWithIdToken()`, and `loginWithAccessToken()` methods within this module.
+- \<LoginResult>
+  - provider \<WepinLoginProviders>
+  - token \<WepinFBToken>
+    - idToken \<String> - Wepin Firebase idToken
+    - refreshToken\<String> - Wepin Firebase refreshToken
 
-- <WepinLoginResult> - If the parameter value does not exist, it checks the login session status and refreshes the login session.
-  - `provider` \<WepinLoginProviders>
-  - `token` \<WepinFBToken>
-    - `idToken` \<String> - Wepin Firebase idToken
-    - `refreshToken` `<String> - Wepin Firebase refreshToken
+
 
 #### Returns
 - CompletableFuture\<WepinUser> - A promise that resolves to an object containing the user's login status and information. The object includes:
