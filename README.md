@@ -66,7 +66,7 @@ When a custom scheme is used, WepinLogin Library can be easily configured to cap
 ```kotlin
 // For Deep Link => RedirectScheme Format : wepin. + Wepin App ID
 android.defaultConfig.manifestPlaceholders = [
-  'appAuthRedirectScheme': 'wepin.{{YOUR_WEPIN_APPID}}'
+  'appAuthRedirectScheme': 'wepin.{YOUR_WEPIN_APPID}'
 ]
 ```
 Add the below line in your app's AndroidManifest.xml file
@@ -105,8 +105,8 @@ Create instance of WepinLoginLibrary in your activity to use wepin and pass your
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_example_main);
 
-        String appId = getResources().getString(R.string.wepin_app_id);
-        String appKey = getResources().getString(R.string.wepin_app_key);
+        String appId = "Wepin-App-ID”;
+        String appKey = "Wepin-App-Key”;
 
         WepinLoginOptions wepinLoginOptions = new WepinLoginOptions(this, appId, appKey);
         wepinLogin = new WepinLogin(wepinLoginOptions);
@@ -134,8 +134,8 @@ Create instance of WepinLoginLibrary in your activity to use wepin and pass your
 
           val wepinLoginOptions =  WepinLoginOptions(
               context = this,
-              appId=resources.getString(R.string.wepin_app_id),
-              appKey = resources.getString(R.string.wepin_app_key)
+              appId = "Wepin-App-ID",
+              appKey = "Wepin-App-Key”
           )
           wepinLogin = WepinLogin(wepinLoginOptions)
           // Call initialize function 
