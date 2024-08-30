@@ -16,11 +16,7 @@ import com.wepin.android.loginlib.types.LoginResult
 import com.wepin.android.loginlib.types.LoginWithEmailParams
 import com.wepin.android.loginlib.types.Providers
 import com.wepin.android.loginlib.types.StorageDataType
-import com.wepin.android.loginlib.types.Token
-import com.wepin.android.loginlib.types.UserInfo
-import com.wepin.android.loginlib.types.UserStatus
 import com.wepin.android.loginlib.types.WepinLoginOptions
-import com.wepin.android.loginlib.types.WepinLoginStatus
 import com.wepin.android.loginlib.types.WepinUser
 import com.wepin.android.loginlib.types.network.LoginOauthAccessTokenRequest
 import com.wepin.android.loginlib.types.network.LoginOauthIdTokenRequest

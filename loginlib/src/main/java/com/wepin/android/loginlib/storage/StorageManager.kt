@@ -200,37 +200,43 @@ internal object StorageManager {
     }
 
     fun getWepinUser(): WepinUser? {
-        val walletId = getStorage("wallet_id")
-        val userInfo = getStorage("user_info")
-        val wepinToken = getStorage("wepin:connectUser")
-        val userStatus = getStorage("user_status")
 
-        if (userInfo == null || wepinToken == null || userStatus == null) {
-            return null
-        }
-        var wepinWallet: String? = null
-        if(walletId != null){
-            wepinWallet = walletId as String
-        }
-        val wepinUser = WepinUser(
-            status = "success",
-            userInfo = UserInfo(
-                userId = (userInfo as StorageDataType.UserInfo).userInfo!!.userId,
-                email = (userInfo as StorageDataType.UserInfo).userInfo!!.email,
-                provider = Providers.fromValue((userInfo as StorageDataType.UserInfo).userInfo!!.provider)!!,//Providers.fromValue(params.provider)!!,
-                use2FA = (userInfo as StorageDataType.UserInfo).userInfo!!.use2FA
-            ),
-            userStatus = UserStatus(
-                loginStatus= WepinLoginStatus.fromValue((userStatus as StorageDataType.UserStatus).loginStatus)!!,
-                pinRequired = (userStatus as StorageDataType.UserStatus).pinRequired
-            ),
-            walletId = wepinWallet,
-            token = Token(
-                accessToken = (wepinToken as StorageDataType.WepinToken).accessToken,
-                refreshToken = (wepinToken as StorageDataType.WepinToken).refreshToken
+        try {
+            val walletId = getStorage("wallet_id")
+            val userInfo = getStorage("user_info")
+            val wepinToken = getStorage("wepin:connectUser")
+            val userStatus = getStorage("user_status")
+
+            if (userInfo == null || wepinToken == null || userStatus == null) {
+                return null
+            }
+            var wepinWallet: String? = null
+            if(walletId != null){
+                wepinWallet = walletId as String
+            }
+            val wepinUser = WepinUser(
+                status = "success",
+                userInfo = UserInfo(
+                    userId = (userInfo as StorageDataType.UserInfo).userInfo!!.userId,
+                    email = (userInfo as StorageDataType.UserInfo).userInfo!!.email,
+                    provider = Providers.fromValue((userInfo as StorageDataType.UserInfo).userInfo!!.provider)!!,//Providers.fromValue(params.provider)!!,
+                    use2FA = (userInfo as StorageDataType.UserInfo).userInfo!!.use2FA
+                ),
+                userStatus = UserStatus(
+                    loginStatus= WepinLoginStatus.fromValue((userStatus as StorageDataType.UserStatus).loginStatus)!!,
+                    pinRequired = (userStatus as StorageDataType.UserStatus).pinRequired
+                ),
+                walletId = wepinWallet,
+                token = Token(
+                    accessToken = (wepinToken as StorageDataType.WepinToken).accessToken,
+                    refreshToken = (wepinToken as StorageDataType.WepinToken).refreshToken
+                )
             )
-        )
-        return wepinUser
+            return wepinUser
+        }catch (e: Exception){
+            e.printStackTrace()
+        }
+        return null
     }
     fun setWepinUser(request: LoginResult,
                      response: LoginResponse) {

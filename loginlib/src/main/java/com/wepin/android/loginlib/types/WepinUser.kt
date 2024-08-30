@@ -1,5 +1,7 @@
 package com.wepin.android.loginlib.types
 
+import com.wepin.android.loginlib.error.WepinError
+
 data class UserInfo(
     val userId: String,
     val email: String,
@@ -13,12 +15,12 @@ data class UserStatus(
 )
 
 enum class WepinLoginStatus(val value:String) {
-    COMPLETE("completed"),
+    COMPLETE("complete"),
     PIN_REQUIRED("pinRequired"),
     REGISTER_REQUIRED("registerRequired");
     companion object {
         fun fromValue(value: String): WepinLoginStatus? {
-            return WepinLoginStatus.entries.find { it.value == value }
+            return WepinLoginStatus.entries.find { it.value == value } ?: throw WepinError.generalUnKnownEx("Invalid Login Status : $value")
         }
     }
 }
