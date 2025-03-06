@@ -2,7 +2,7 @@ package com.wepin.android.loginlib.appAuth
 
 import com.wepin.android.loginlib.error.WepinError
 import com.wepin.android.loginlib.manager.WepinLoginManager
-import com.wepin.android.loginlib.storage.StorageManager
+import com.wepin.android.loginlib.storage.WepinStorageManager
 import com.wepin.android.loginlib.types.ErrorCode
 import com.wepin.android.loginlib.types.FBToken
 import com.wepin.android.loginlib.types.LoginResult
@@ -62,7 +62,7 @@ internal class LoginHelper(
     fun doFirebaseLoginWithCustomToken(token:String, type: Providers) :CompletableFuture<LoginResult>? {
         return wepinLoginManager.wepinFirebaseManager?.signInWithCustomToken(token)?.thenApply { res ->
             val loginResult = LoginResult(type, FBToken(res.idToken, res.refreshToken))
-            StorageManager.setFirebaseUser(loginResult)
+            WepinStorageManager.setFirebaseUser(loginResult)
             loginResult
         }
     }
@@ -147,7 +147,7 @@ internal class LoginHelper(
     }
 
     fun loginWithEmailAndResetPasswordState(email: String, password: String): CompletableFuture<LoginResult> {
-        StorageManager.deleteAllStorage()
+        WepinStorageManager.deleteAllStorage()
         wepinLoginManager.wepinNewtorkManager?.getUserPasswordState(email.trim())?.whenComplete { t, u ->
             if(u != null) {
                 if(!isFirstEmailUser(u.message.toString())){
@@ -174,7 +174,7 @@ internal class LoginHelper(
                                         Providers.EMAIL,
                                         token
                                     )
-                                    StorageManager.setFirebaseUser(loginResult)
+                                    WepinStorageManager.setFirebaseUser(loginResult)
                                     wepinLoginManager.loginCompletableFuture.complete(loginResult)
                                 }
                             }?.exceptionally {

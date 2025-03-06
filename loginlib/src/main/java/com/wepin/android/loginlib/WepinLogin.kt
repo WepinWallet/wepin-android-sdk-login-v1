@@ -8,7 +8,7 @@ import com.wepin.android.loginlib.const.RegExpConst
 import com.wepin.android.loginlib.error.WepinError
 import com.wepin.android.loginlib.manager.WepinLoginManager
 import com.wepin.android.loginlib.network.WepinNetworkManager
-import com.wepin.android.loginlib.storage.StorageManager
+import com.wepin.android.loginlib.storage.WepinStorageManager
 import com.wepin.android.loginlib.types.FBToken
 import com.wepin.android.loginlib.types.LoginOauth2Params
 import com.wepin.android.loginlib.types.LoginOauthResult
@@ -43,46 +43,49 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
 //    private val repositoryScope = CoroutineScope(Dispatchers.IO + repositoryJob)
 
     fun init() : CompletableFuture<Boolean>? {
-        val wepinCompletableFutre: CompletableFuture<Boolean> = CompletableFuture<Boolean>()
-        if(_isInitialized){
-            wepinCompletableFutre.completeExceptionally(
-                WepinError.ALREADY_INITIALIZED_ERROR
-            )
-            return wepinCompletableFutre
-        }
-        if(_contex == null || _contex !is Activity) {
-            wepinCompletableFutre.completeExceptionally(
-                WepinError.NOT_ACTIVITY
-            )
-            return wepinCompletableFutre
-        }
+        try {
+            val wepinCompletableFuture: CompletableFuture<Boolean> = CompletableFuture<Boolean>()
+            if (_isInitialized) {
+                wepinCompletableFuture.completeExceptionally(
+                    WepinError.ALREADY_INITIALIZED_ERROR
+                )
+                return wepinCompletableFuture
+            }
+            if (_contex == null || _contex !is Activity) {
+                wepinCompletableFuture.completeExceptionally(
+                    WepinError.NOT_ACTIVITY
+                )
+                return wepinCompletableFuture
+            }
 
-        _wepinLoginMangager.init(_contex as Activity, _appKey!!, _appId!!)
-        _wepinNewtorkManager = _wepinLoginMangager.wepinNewtorkManager
-        _wepinNewtorkManager!!.getFirebaseConfig().thenApply { configResponse ->
-            _wepinLoginMangager.setFirebase(configResponse as String)
-        }
-        StorageManager.init(_contex as Activity, _appId!!)
-        StorageManager.deleteAllIfAppIdDataNotExists()
-        checkExistWepinLoginSession().thenApply {}
+            _wepinLoginMangager.init(_contex as Activity, _appKey!!, _appId!!)
+            _wepinNewtorkManager = _wepinLoginMangager.wepinNewtorkManager
+            _wepinNewtorkManager!!.getFirebaseConfig().thenApply { configResponse ->
+                _wepinLoginMangager.setFirebase(configResponse as String)
+            }
+            WepinStorageManager.init(_contex as Activity, _appId!!)
+            checkExistWepinLoginSession().thenApply {}
 
-        return _wepinNewtorkManager?.getAppInfo()
-            ?.thenApply { infoResponse ->
-            Log.d(TAG, "infoResponse $infoResponse")
-            _isInitialized = infoResponse !== null
-            _isInitialized
+            return _wepinNewtorkManager?.getAppInfo()
+                ?.thenApply { infoResponse ->
+                    Log.d(TAG, "infoResponse $infoResponse")
+                    _isInitialized = infoResponse !== null
+                    _isInitialized
+                }
+        } catch(e: Error) {
+            throw Error("initalize error")
         }
     }
 
     private fun checkExistWepinLoginSession() : CompletableFuture<Boolean> {
         val wepinCompletableFuture: CompletableFuture<Boolean> = CompletableFuture<Boolean>()
-        val token = StorageManager.getStorage("wepin:connectUser")
-        val userId = StorageManager.getStorage("user_id")
+        val token = WepinStorageManager.getStorage<StorageDataType>("wepin:connectUser")
+        val userId = WepinStorageManager.getStorage<String>("user_id")
         if (token != null && userId != null){
             _wepinNewtorkManager?.setAuthToken((token as StorageDataType.WepinToken).accessToken, (token as StorageDataType.WepinToken).refreshToken)
             _wepinNewtorkManager?.getAccessToken(userId = userId as String) ?.thenApply { response ->
                 Log.d(TAG, "checkExistWepinLoginSession response $response")
-                StorageManager.setStorage(
+                WepinStorageManager.setStorage<StorageDataType>(
                     "wepin:connectUser",
                     StorageDataType.WepinToken(
                         accessToken = response,
@@ -94,19 +97,21 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
                 wepinCompletableFuture
             }?.exceptionally {
                 _wepinNewtorkManager?.clearAuthToken()
-                StorageManager.deleteAllStorageWithAppId()
+//                WepinStorageManager.deleteAllStorageWithAppId()
+                WepinStorageManager.deleteAllStorage()
                 wepinCompletableFuture.complete(true)
                 wepinCompletableFuture
             }
-        }else{
+        } else{
             _wepinNewtorkManager?.clearAuthToken()
-            StorageManager.deleteAllStorageWithAppId()
+//            WepinStorageManager.deleteAllStorageWithAppId()
+            WepinStorageManager.deleteAllStorage()
             wepinCompletableFuture.complete(true)
         }
         return wepinCompletableFuture
     }
     fun finalize() {
-        StorageManager.deleteAllStorage()
+        WepinStorageManager.deleteAllStorage()
         _isInitialized = false
     }
 
@@ -160,7 +165,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
             )
             return _wepinLoginMangager.loginCompletableFuture
         }
-        StorageManager.deleteAllStorage()
+        WepinStorageManager.deleteAllStorage()
         return _wepinNewtorkManager?.loginOAuthIdToken(params)?.thenCompose  { loginResponse ->
             if(loginResponse.token != null) _wepinLoginMangager.loginHelper?.doFirebaseLoginWithCustomToken(loginResponse.token, Providers.EXTERNAL_TOKEN)
             else {
@@ -187,7 +192,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
             )
             return _wepinLoginMangager.loginCompletableFuture
         }
-        StorageManager.deleteAllStorage()
+        WepinStorageManager.deleteAllStorage()
         return _wepinNewtorkManager?.loginOAuthAccessToken(params)?.thenCompose  { loginResponse ->
             if(loginResponse.token != null) _wepinLoginMangager.loginHelper?.doFirebaseLoginWithCustomToken(loginResponse.token, Providers.EXTERNAL_TOKEN)
             else {
@@ -299,7 +304,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
             )
             return _wepinLoginMangager.loginCompletableFuture
         }
-        val firebaseToken = StorageManager.getStorage("firebase:wepin")
+        val firebaseToken = WepinStorageManager.getStorage<StorageDataType>("firebase:wepin")
 
         if(firebaseToken != null){
             val provider = (firebaseToken as StorageDataType.FirebaseWepin).provider
@@ -317,7 +322,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
                             provider
                         )!!, token = token
                     )
-                    StorageManager.setFirebaseUser(loginResult);
+                    WepinStorageManager.setFirebaseUser(loginResult);
                     _wepinLoginMangager.loginCompletableFuture.complete(loginResult)
 
                 }
@@ -339,7 +344,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
             return _wepinLoginMangager.loginWepinCompletableFutre
         }
         checkExistWepinLoginSession().thenApply {}
-        val wepinUser = StorageManager.getWepinUser()
+        val wepinUser = WepinStorageManager.getWepinUser()
         if(wepinUser != null) {
             _wepinLoginMangager.loginWepinCompletableFutre.complete(wepinUser)
         }else {
@@ -369,8 +374,8 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
                 if(error != null){
                     _wepinLoginMangager.loginWepinCompletableFutre.completeExceptionally(WepinError("${error.message}"))
                 }else {
-                    StorageManager.setWepinUser(params, loginResponse)
-                    val wepinUser = StorageManager.getWepinUser()
+                    WepinStorageManager.setWepinUser(params, loginResponse)
+                    val wepinUser = WepinStorageManager.getWepinUser()
                     _wepinLoginMangager.loginWepinCompletableFutre.complete(wepinUser)
                 }
             }
@@ -387,7 +392,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
             return wepinCompletableFutre
         }
 
-        val userId = StorageManager.getStorage("user_id")
+        val userId = WepinStorageManager.getStorage<String>("user_id")
         if (userId == null){
             wepinCompletableFutre.completeExceptionally(
                 WepinError.ALREADY_LOGOUT
@@ -404,7 +409,7 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions) {
                         )
                     )
                 } else {
-                    StorageManager.deleteAllStorage()
+                    WepinStorageManager.deleteAllStorage()
                     wepinCompletableFutre.complete(response)
                 }
             }
