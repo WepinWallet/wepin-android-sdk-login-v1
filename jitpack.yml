@@ -1,4 +1,4 @@
 jdk:
   - openjdk17
 install:
-  - bash ./gradlew :loginLib:build :loginLib:publishToMavenLocal
+  - bash ./gradlew :loginLib:build :loginLib:publishReleasePublicationToMavenLocal
