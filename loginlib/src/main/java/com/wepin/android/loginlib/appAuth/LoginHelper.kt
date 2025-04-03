@@ -1,131 +1,262 @@
 package com.wepin.android.loginlib.appAuth
 
-import com.wepin.android.loginlib.error.WepinError
-import com.wepin.android.loginlib.manager.WepinLoginManager
-import com.wepin.android.loginlib.storage.WepinStorageManager
-import com.wepin.android.loginlib.types.ErrorCode
+import com.wepin.android.commonlib.error.WepinError
+import com.wepin.android.commonlib.types.WepinUser
+import com.wepin.android.loginlib.manager.CompletableFutureManager
 import com.wepin.android.loginlib.types.FBToken
+import com.wepin.android.loginlib.types.LoginOauthResult
 import com.wepin.android.loginlib.types.LoginResult
 import com.wepin.android.loginlib.types.LoginWithEmailParams
-import com.wepin.android.loginlib.types.LoginOauthResult
 import com.wepin.android.loginlib.types.OauthTokenParam
 import com.wepin.android.loginlib.types.OauthTokenType
 import com.wepin.android.loginlib.types.Providers
-import com.wepin.android.loginlib.types.WepinLoginError
-import com.wepin.android.loginlib.types.network.OAuthTokenRequest
-import com.wepin.android.loginlib.types.network.PasswordStateRequest
-import com.wepin.android.loginlib.types.network.VerifyRequest
-import com.wepin.android.loginlib.types.network.VerifyResponse
-import com.wepin.android.loginlib.types.network.firebase.EmailAndPasswordRequest
-import com.wepin.android.loginlib.types.network.firebase.ResetPasswordRequest
-import com.wepin.android.loginlib.types.network.firebase.VerifyEmailRequest
 import com.wepin.android.loginlib.utils.hashPassword
+import com.wepin.android.networklib.WepinFirebase
+import com.wepin.android.networklib.WepinNetwork
+import com.wepin.android.networklib.types.firebase.EmailAndPasswordRequest
+import com.wepin.android.networklib.types.firebase.GetRefreshIdTokenRequest
+import com.wepin.android.networklib.types.firebase.ResetPasswordRequest
+import com.wepin.android.networklib.types.firebase.VerifyEmailRequest
+import com.wepin.android.networklib.types.wepin.OAuthTokenRequest
+import com.wepin.android.networklib.types.wepin.OAuthTokenResponse
+import com.wepin.android.networklib.types.wepin.PasswordStateRequest
+import com.wepin.android.networklib.types.wepin.VerifyRequest
+import com.wepin.android.networklib.types.wepin.VerifyResponse
+import com.wepin.android.storage.WepinStorageManager
+import com.wepin.android.storage.types.StorageDataType
 import org.json.JSONObject
 import java.util.concurrent.CompletableFuture
 
 internal class LoginHelper(
-    private val wepinLoginManager: WepinLoginManager,
+    private val networkManager: WepinNetwork,
+    private val firebaseNetwork: WepinFirebase,
+    private val completableFutureManager: CompletableFutureManager
 ) {
-    fun onWepinOauthLoginResult(provider: String, token: String) {
-        val providerValue = Providers.fromValue(provider)
-        if(providerValue == null) {
-            wepinLoginManager.loginOauthCompletableFuture.completeExceptionally(WepinError.INVALID_LOGIN_PROVIDER)
-        } else {
-            setLoginOauthResult(token, provider)
+    internal lateinit var appAuthRedirectUrl: String
+        private set
 
-        }
+    fun init(redirectUrl: String) {
+        appAuthRedirectUrl = redirectUrl
     }
 
-    fun onWepinOauthLoginError(code: ErrorCode?, errorMessage:String? = null) {
-        if(code != null){
-            wepinLoginManager.loginOauthCompletableFuture.completeExceptionally(WepinError(WepinLoginError.getError(code)))
-            return
-        }
-        wepinLoginManager.loginOauthCompletableFuture.completeExceptionally(WepinError.generalUnKnownEx(errorMessage))
+    fun handleOAuthResult(provider: String, token: String, tokenType: OauthTokenType) {
+        completableFutureManager.completeOAuthSuccess(
+            LoginOauthResult(provider, token, tokenType)
+        )
     }
 
-    private fun setLoginOauthResult(token:String, provider: String) : CompletableFuture<LoginOauthResult> {
-        when(provider){
-            "google", "apple" -> {
-                wepinLoginManager.loginOauthCompletableFuture.complete(LoginOauthResult(provider, token, OauthTokenType.ID_TOKEN ))
+    fun handleOAuthError(error: Exception) {
+        completableFutureManager.completeOAuthError(error)
+    }
+
+    fun handleLoginResult(loginResult: LoginResult) {
+        completableFutureManager.completeLoginSuccess(loginResult)
+    }
+
+    fun handleLoginError(error: Exception) {
+        completableFutureManager.completeLoginError(error)
+    }
+
+    fun handleLoginError(error: Throwable) {
+        completableFutureManager.completeLoginError(error)
+    }
+
+    fun handleLoginWepinResult(wepinUser: WepinUser) {
+        completableFutureManager.completeWepinUserSuccess(wepinUser)
+    }
+
+    fun handleLoginWepinError(error: Exception) {
+        completableFutureManager.completeWepinUserError(error)
+    }
+
+    fun handleLoginWepinError(error: Throwable) {
+        completableFutureManager.completeWepinUserError(error)
+    }
+
+    fun getOauthTokenWithWepin(param: OauthTokenParam, tokenType: OauthTokenType) {
+        val body = OAuthTokenRequest(
+            code = param.code,
+            clientId = param.clientId,
+            state = param.state,
+            redirectUri = appAuthRedirectUrl,
+            codeVerifier = param.codeVerifier
+        )
+
+        networkManager.oauthTokenRequest(param.provider, body)
+            .whenComplete { response, error ->
+                handleTokenResponse(param.provider, tokenType, response, error)
             }
-            "discord", "naver" -> {
-                wepinLoginManager.loginOauthCompletableFuture.complete(LoginOauthResult(provider, token, OauthTokenType.ACCESS_TOKEN ))
-            }
-            else -> {
-                wepinLoginManager.loginOauthCompletableFuture.completeExceptionally(WepinError.INVALID_LOGIN_PROVIDER)
-            }
-        }
-        return wepinLoginManager.loginOauthCompletableFuture
     }
 
-    fun doFirebaseLoginWithCustomToken(token:String, type: Providers) :CompletableFuture<LoginResult>? {
-        return wepinLoginManager.wepinFirebaseManager?.signInWithCustomToken(token)?.thenApply { res ->
-            val loginResult = LoginResult(type, FBToken(res.idToken, res.refreshToken))
-            WepinStorageManager.setFirebaseUser(loginResult)
-            loginResult
-        }
-    }
-
-    private fun signUpFirebase(params: LoginWithEmailParams, verifyResponse: VerifyResponse) : CompletableFuture<LoginResult> {
-        wepinLoginManager.wepinFirebaseManager?.resetPassword(ResetPasswordRequest(oobCode = verifyResponse.oobReset!!, newPassword = params.password))
-            ?.whenComplete { resetPasswordResponse, resetPasswordError ->
-                if(resetPasswordError != null || resetPasswordResponse.email.trim().lowercase() != params.email.trim()){
-                    wepinLoginManager.loginCompletableFuture.completeExceptionally(WepinError.FAILED_PASSWORD_SETTING)
+    fun verifySignUpFirebase(params: LoginWithEmailParams) {
+        val localeId = if (params.locale == "ko") 1 else 2
+        networkManager.verify(
+            VerifyRequest(
+                type = "create",
+                email = params.email,
+                localeId = localeId
+            )
+        ).whenComplete { verifyResponse, verifyError ->
+            if (verifyError != null) {
+                if (verifyError.message?.contains("400") == true) {
+                    handleLoginError(WepinError.INVALID_EMAIL_DOMAIN)
                 } else {
-                    wepinLoginManager.wepinFirebaseManager!!.verifyEmail(
-                        VerifyEmailRequest(oobCode = verifyResponse.oobVerify!!)
-                    ).whenComplete { verifyEmailRes, verifyEmailError ->
-                        if(verifyEmailError != null || verifyEmailRes.email.trim().lowercase() !== params.email.trim()){
-                            wepinLoginManager.loginCompletableFuture.completeExceptionally(WepinError.FAILED_EMAIL_VERIFIED)
-                        }else {
-                            loginWithEmailAndResetPasswordState(params.email, params.password)
-                        }
-                    }
+                    handleLoginError(WepinError.FAILED_SEND_EMAIL)
                 }
             }
-        return wepinLoginManager.loginCompletableFuture
+            if (verifyResponse.result) {
+                if (verifyResponse.oobVerify != null && verifyResponse.oobReset != null) {
+                    signUpFirebase(params, verifyResponse)
+                } else {
+                    handleLoginError(WepinError.REQUIRED_EMAIL_VERIFIED)
+                }
+            }
+        }
     }
 
-    fun verifySignUpFirebase(params: LoginWithEmailParams): CompletableFuture<LoginResult> {
-        val localeId = if(params.locale == "ko") 1 else 2
-        wepinLoginManager.wepinNewtorkManager?.verify(VerifyRequest(type = "create", email=params.email, localeId = localeId))
-            ?.whenComplete { verifyResponse, verifyError ->
-                if(verifyError != null) {
-                    if(verifyError.message?.contains("400") == true){
-                        wepinLoginManager.loginCompletableFuture.completeExceptionally(WepinError.INVALID_EMAIL_DOMAIN)
-                    }else {
-                        wepinLoginManager.loginCompletableFuture.completeExceptionally(WepinError.FAILED_SEND_EMAIL)
-                    }
-                    return@whenComplete
+    private fun signUpFirebase(params: LoginWithEmailParams, verifyResponse: VerifyResponse) {
+        firebaseNetwork.resetPassword(
+            ResetPasswordRequest(
+                oobCode = verifyResponse.oobReset!!,
+                newPassword = params.password
+            )
+        )
+            .whenComplete { resetPasswordResponse, resetPasswordError ->
+                if (resetPasswordError != null || resetPasswordResponse.email.trim()
+                        .lowercase() != params.email.trim()
+                ) {
+                    handleLoginError(WepinError.FAILED_PASSWORD_SETTING)
+                } else {
+                    firebaseNetwork.verifyEmail(VerifyEmailRequest(oobCode = verifyResponse.oobVerify!!))
+                        .whenComplete { verifyEmailRes, verifyEmailError ->
+                            if (verifyEmailError != null || verifyEmailRes.email.trim()
+                                    .lowercase() != params.email.trim()
+                            ) {
+                                handleLoginError(WepinError.FAILED_EMAIL_VERIFICATION)
+                            } else {
+                                loginWithEmailAndResetPasswordState(params.email, params.password)
+                            }
+                        }
+
                 }
-                if(verifyResponse.result){
-                    if (verifyResponse.oobVerify != null && verifyResponse.oobReset != null){
-                        signUpFirebase(params, verifyResponse)
-                    }else {
-                        wepinLoginManager.loginCompletableFuture.completeExceptionally(WepinError.REQUIRED_EMAIL_VERIFIED)
+            }
+    }
+
+    fun loginWithEmailAndResetPasswordState(email: String, password: String) {
+        WepinStorageManager.deleteAllStorage()
+        networkManager.getUserPasswordState(email.trim())
+            .whenComplete { getPasswordStateRes, getPasswordStateError ->
+                if (getPasswordStateError != null) {
+                    if (!isFirstEmailUser(getPasswordStateError.message.toString())) {
+                        handleLoginError(getPasswordStateError)
+                    }
+                }
+                val encryptedPassword = hashPassword(password)
+                val isChangeRequired =
+                    getPasswordStateRes?.isPasswordResetRequired == true || getPasswordStateError != null
+                val firstPw = if (isChangeRequired) password else encryptedPassword
+                firebaseNetwork.signInWithEmailPassword(
+                    EmailAndPasswordRequest(
+                        email.trim(),
+                        firstPw
+                    )
+                ).whenComplete { signInResponse, signInError ->
+                    if (signInError != null) handleLoginError(signInError)
+                    val idToken: String = signInResponse.idToken
+                    val refreshToken: String = signInResponse.refreshToken
+
+                    if (isChangeRequired) {
+                        changePassword(
+                            encryptedPassword,
+                            FBToken(idToken, refreshToken)
+                        )?.thenApply { token ->
+                            if (token != null) {
+                                WepinStorageManager.setStorage<StorageDataType>(
+                                    "firebase:wepin",
+                                    StorageDataType.FirebaseWepin(
+                                        idToken = token.idToken,
+                                        refreshToken = token.refreshToken,
+                                        provider = "email"
+                                    )
+                                )
+                                handleLoginResult(
+                                    LoginResult(
+                                        provider = Providers.EMAIL,
+                                        token = token
+                                    )
+                                )
+                            }
+                        }?.exceptionally {
+                            handleLoginError(it)
+                        } ?: handleLoginError(WepinError.generalUnKnownEx("failed password set"))
+                    } else {
+                        handleLoginResult(
+                            LoginResult(
+                                provider = Providers.EMAIL,
+                                token = FBToken(idToken, refreshToken)
+                            )
+                        )
                     }
                 }
             }
-        return wepinLoginManager.loginCompletableFuture
+    }
+
+    fun doFirebaseLoginWithCustomToken(token: String, type: String) {
+        firebaseNetwork.signInWithCustomToken(token).thenApply { res ->
+            val loginResult =
+                LoginResult(Providers.fromValue(type)!!, FBToken(res.idToken, res.refreshToken))
+            WepinStorageManager.setStorage<StorageDataType>(
+                "firebase:wepin",
+                StorageDataType.FirebaseWepin(
+                    idToken = res.idToken,
+                    refreshToken = res.refreshToken,
+                    provider = type
+                )
+            )
+            handleLoginResult(loginResult)
+        }
+    }
+
+    fun getRefreshIdToken(provider: Providers, refreshToken: String) {
+        firebaseNetwork.getRefreshIdToken(GetRefreshIdTokenRequest(refreshToken))
+            .whenComplete { response, error ->
+                if (error != null) {
+                    handleLoginError(WepinError.generalUnKnownEx("${error.message}"))
+                } else {
+                    val token = FBToken(
+                        idToken = response.id_token,
+                        refreshToken = response.refresh_token
+                    )
+                    val loginResult = LoginResult(provider = provider, token = token)
+                    WepinStorageManager.setStorage(
+                        "firebase:wepin",
+                        StorageDataType.FirebaseWepin(
+                            idToken = token.idToken,
+                            refreshToken = token.refreshToken,
+                            provider = provider.value
+                        )
+                    )
+                    handleLoginResult(loginResult)
+                }
+            }
     }
 
     private fun changePassword(password: String, token: FBToken): CompletableFuture<FBToken?>? {
-        return  wepinLoginManager.wepinNewtorkManager?.login(token.idToken)?.thenCompose { loginResponse ->
-            wepinLoginManager.wepinFirebaseManager?.updatePassword(token.idToken, password)
-                ?.thenCompose { updatePwResponse ->
-                    val passwordStateRequest = PasswordStateRequest(false)
-                    wepinLoginManager.wepinNewtorkManager!!.updateUserPasswordState(loginResponse.userInfo.userId, passwordStateRequest)
-                        .thenApply {
-                            FBToken(updatePwResponse.idToken, updatePwResponse.refreshToken)
-                        }
+        return networkManager.login(token.idToken).thenCompose { loginResponse ->
+            firebaseNetwork.updatePassword(token.idToken, password).thenCompose { updatePWRes ->
+                val passwordStateRequest = PasswordStateRequest(false)
+                networkManager.updateUserPasswordState(
+                    loginResponse.userInfo.userId,
+                    passwordStateRequest
+                ).thenApply {
+                    FBToken(updatePWRes.idToken, updatePWRes.refreshToken)
                 }
+            }
         }
     }
 
-    private fun isFirstEmailUser(errorString :String):Boolean {
-        // JSON 문자열 추출
-        val jsonString = errorString.substringAfter("java.lang.Exception: ")
+    private fun isFirstEmailUser(errorString: String): Boolean {
+        val jsonString = errorString.substringAfter("Error Message: ")
 
         try {
             // JSON 파싱
@@ -141,84 +272,39 @@ internal class LoginHelper(
 
             // 결과 출력
             return isStatus400 && isMessageContainsNotExist
-        }catch (e: Exception){
+        } catch (e: Exception) {
             return false
         }
     }
 
-    fun loginWithEmailAndResetPasswordState(email: String, password: String): CompletableFuture<LoginResult> {
-        WepinStorageManager.deleteAllStorage()
-        wepinLoginManager.wepinNewtorkManager?.getUserPasswordState(email.trim())?.whenComplete { t, u ->
-            if(u != null) {
-                if(!isFirstEmailUser(u.message.toString())){
-                    wepinLoginManager.loginCompletableFuture.completeExceptionally(u)
-                }
-            }
-            val encryptedPassword = hashPassword(password)
-            val isChangeRequired = t?.isPasswordResetRequired == true || u != null
-            val firstPw = if(isChangeRequired) password else encryptedPassword
-            wepinLoginManager.wepinFirebaseManager?.signInWithEmailPassword(EmailAndPasswordRequest(
-                email.trim(),
-                firstPw
-            ))
-                ?.whenComplete { signInResponse , e ->
-                    if(e != null) wepinLoginManager.loginCompletableFuture.completeExceptionally(e)
-                    val idToken: String = signInResponse.idToken
-                    val refreshToken: String = signInResponse.refreshToken
-
-                    if(isChangeRequired) {
-                        changePassword(encryptedPassword, FBToken(idToken, refreshToken))
-                            ?.thenApply { token ->
-                                if (token != null) {
-                                    val loginResult = LoginResult(
-                                        Providers.EMAIL,
-                                        token
-                                    )
-                                    WepinStorageManager.setFirebaseUser(loginResult)
-                                    wepinLoginManager.loginCompletableFuture.complete(loginResult)
-                                }
-                            }?.exceptionally {
-                                wepinLoginManager.loginCompletableFuture.completeExceptionally(it)
-                            } ?: wepinLoginManager.loginCompletableFuture.completeExceptionally(
-                            WepinError(
-                                WepinLoginError.getError(
-                                    ErrorCode.UNKNOWN_ERROR,
-                                    "failed password set"
-                                )
-                            )
-                        )
-                    }else {
-                        wepinLoginManager.loginCompletableFuture.complete(
-                            LoginResult(
-                                Providers.EMAIL,
-                                FBToken(idToken, refreshToken)
-                            )
-                        )
-                    }
-                }
+    private fun handleTokenResponse(
+        provider: String,
+        authType: OauthTokenType,
+        response: OAuthTokenResponse?,
+        error: Throwable?
+    ) {
+        when {
+            error != null -> handleOAuthError(WepinError.FAILED_LOGIN)
+            response != null -> processTokenResponse(provider, authType, response)
+            else -> handleOAuthError(WepinError.INVALID_TOKEN)
         }
-        return wepinLoginManager.loginCompletableFuture
     }
 
-    fun getOauthTokenWithWepin(param: OauthTokenParam){
-        val networkManger = wepinLoginManager.wepinNewtorkManager
-        val body  = OAuthTokenRequest(
-            code = param.code,
-            clientId = param.clientId,
-            state = param.state,
-            redirectUri = wepinLoginManager.appAuthRedirectUrl,
-            codeVerifier=param.codeVerifier,
-        )
-        networkManger?.oauthTokenRequest(param.provider, body)?.whenComplete { oauthTokenResponse, oauthTokenError ->
-            if(oauthTokenError != null) {
-                wepinLoginManager.loginHelper?.onWepinOauthLoginError(ErrorCode.FAILED_LOGIN, oauthTokenError.message)
-            }
-            else if(oauthTokenResponse != null){
-                if(param.provider == "naver") wepinLoginManager.loginHelper?.onWepinOauthLoginResult(param.provider, oauthTokenResponse.access_token)
-                else wepinLoginManager.loginHelper?.onWepinOauthLoginResult(param.provider, oauthTokenResponse.id_token!!)
-            } else {
-                wepinLoginManager.loginHelper?.onWepinOauthLoginError(ErrorCode.INVALID_TOKEN)
-            }
+    private fun processTokenResponse(
+        provider: String,
+        authType: OauthTokenType,
+        response: OAuthTokenResponse
+    ) {
+        when (authType) {
+            OauthTokenType.ACCESS_TOKEN -> handleOAuthResult(
+                provider,
+                response.access_token,
+                OauthTokenType.ACCESS_TOKEN
+            )
+
+            else -> response.id_token?.let {
+                handleOAuthResult(provider, it, OauthTokenType.ID_TOKEN)
+            } ?: handleOAuthError(WepinError.INVALID_TOKEN)
         }
     }
 }

@@ -2,8 +2,8 @@ package com.wepin.android.loginlib
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
+import com.wepin.android.loginLib.R
 
 class RedirectUriReceiverActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

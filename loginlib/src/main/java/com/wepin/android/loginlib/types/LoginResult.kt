@@ -1,11 +1,13 @@
 package com.wepin.android.loginlib.types
 
-data class FBToken (
+import com.wepin.android.commonlib.types.Providers
+
+data class FBToken(
     val idToken: String,
     val refreshToken: String
 )
 
-data class LoginResult (
-    val provider:Providers,
+data class LoginResult(
+    val provider: Providers,
     val token: FBToken
 )

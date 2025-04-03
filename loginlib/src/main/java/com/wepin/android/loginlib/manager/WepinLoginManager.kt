@@ -1,63 +1,84 @@
 package com.wepin.android.loginlib.manager
 
-import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Context
+import com.wepin.android.commonlib.WepinCommon
+import com.wepin.android.commonlib.types.WepinUser
 import com.wepin.android.loginlib.appAuth.LoginHelper
-import com.wepin.android.loginlib.network.WepinFirebaseManager
-import com.wepin.android.loginlib.network.WepinNetworkManager
 import com.wepin.android.loginlib.types.LoginOauthResult
 import com.wepin.android.loginlib.types.LoginResult
-import com.wepin.android.loginlib.types.WepinUser
-import com.wepin.android.loginlib.utils.getVersionMetaDataValue
+import com.wepin.android.networklib.WepinFirebase
+import com.wepin.android.networklib.WepinNetwork
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CompletableFuture
 
-internal class WepinLoginManager () {
-    private var _contex: Context?  = null
-    var wepinNewtorkManager: WepinNetworkManager? = null
-    var wepinFirebaseManager: WepinFirebaseManager? = null
+internal class WepinLoginManager private constructor() {
+    private val TAG = this.javaClass.name
+
+    //    private var contextRef: WeakReference<Context>? = null
+    internal var wepinNetwork: WepinNetwork? = null
+    internal var wepinFirebase: WepinFirebase? = null
     private var _appKey: String? = null
     private var _appId: String? = null
     private var _packageName: String? = null
     private var _version: String? = null
-    internal var loginCompletableFuture: CompletableFuture<LoginResult> = CompletableFuture()
-    internal var loginOauthCompletableFuture: CompletableFuture<LoginOauthResult> = CompletableFuture()
-    internal var loginWepinCompletableFutre: CompletableFuture<WepinUser> = CompletableFuture<WepinUser>()
-    internal var appAuthRedirectUrl: String = ""
+    private val completableFutureManager = CompletableFutureManager()
     internal var loginHelper: LoginHelper? = null
+    internal val redirectUrl: String
+        get() = loginHelper?.appAuthRedirectUrl ?: throw IllegalStateException("Not initialized")
 
     companion object {
-        @SuppressLint("StaticFieldLeak")
-        private var _instance: WepinLoginManager? = null
-        fun getInstance(): WepinLoginManager {
-            if (null == _instance) {
-                _instance = WepinLoginManager()
+        @Volatile
+        private var instance: WepinLoginManager? = null
+
+        fun getInstance(): WepinLoginManager =
+            instance ?: synchronized(this) {
+                instance ?: WepinLoginManager().also { instance = it }
             }
-            return _instance as WepinLoginManager
-        }
     }
 
-    fun init(context:Context, appKey: String, appId: String) {
-        _contex = context
-        _version = getVersionMetaDataValue()
-        _packageName = (context as Activity).packageName
+    fun init(appKey: String, appId: String) {
         _appKey = appKey
         _appId = appId
-        wepinNewtorkManager = WepinNetworkManager(_contex as Activity, _appKey!!, _packageName!!, _version!!)
-        appAuthRedirectUrl = "${wepinNewtorkManager?.wepinBaseUrl}user/oauth/callback?uri=${URLEncoder.encode("wepin.$_appId:/oauth2redirect", StandardCharsets.UTF_8.toString())}"
-        loginHelper = LoginHelper(this)
-        initLoginCompletableFuture()
+
+        // Get the already initialized WepinNetwork instance
+        wepinNetwork = WepinNetwork.getInstance()
+        wepinFirebase = WepinFirebase.getInstance()
+
+        loginHelper = LoginHelper(wepinNetwork!!, wepinFirebase!!, completableFutureManager)
+        loginHelper?.init(buildRedirectUrl(appKey, appId))
     }
 
-    fun setFirebase(key:String) {
-        wepinFirebaseManager = _contex?.let { WepinFirebaseManager(it, key) }
+    fun initCompletableFuture() {
+        completableFutureManager.resetFutures()
     }
 
-    fun initLoginCompletableFuture() {
-        loginCompletableFuture = CompletableFuture<LoginResult>()
-        loginOauthCompletableFuture = CompletableFuture<LoginOauthResult>()
-        loginWepinCompletableFutre = CompletableFuture<WepinUser>()
+    private fun buildRedirectUrl(appKey: String, appId: String): String {
+        val baseUrl = WepinCommon.getWepinSdkUrl(appKey).get("sdkBackend")
+        val redirectPath = "wepin.$appId:/oauth2redirect"
+        val encodedRedirectPath = URLEncoder.encode(redirectPath, StandardCharsets.UTF_8.toString())
+        return "${baseUrl}user/oauth/callback?uri=$encodedRedirectPath"
+    }
+
+    fun getLoginOAuthFuture(): CompletableFuture<LoginOauthResult> {
+        return completableFutureManager.getOAuthFuture()
+    }
+
+    fun getLoginFuture(): CompletableFuture<LoginResult> {
+        return completableFutureManager.getLoginFuture()
+    }
+
+    fun getWepinUserFuture(): CompletableFuture<WepinUser> {
+        return completableFutureManager.getWepinUserFuture()
+    }
+
+    fun clear() {
+        wepinNetwork = null
+        wepinFirebase = null
+        loginHelper = null
+        _appKey = null
+        _appId = null
+        _packageName = null
+        _version = null
+        completableFutureManager.resetFutures()
     }
 }

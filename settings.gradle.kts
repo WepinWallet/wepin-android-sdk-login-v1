@@ -15,5 +15,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Sample Login Library"
-include(":app")
-include(":loginlib")
+include(":sample")
+include(":loginLib")
