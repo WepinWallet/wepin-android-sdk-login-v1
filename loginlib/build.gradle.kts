@@ -35,6 +35,16 @@ android {
             )
         }
     }
+    libraryVariants.all {
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = when (name) {
+                "release" -> "wepin-login-v${project.extra["libraryVersion"]}.aar"
+                "debug" -> "debug-wepin-login-v${project.extra["libraryVersion"]}.aar"
+                else -> throw IllegalArgumentException("Unsupported build variant: $name")
+            }
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
