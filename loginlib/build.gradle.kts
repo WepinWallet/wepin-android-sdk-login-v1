@@ -39,8 +39,8 @@ android {
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
             output.outputFileName = when (name) {
-                "release" -> "wepin-login-v${project.extra["libraryVersion"]}.aar"
-                "debug" -> "debug-wepin-login-v${project.extra["libraryVersion"]}.aar"
+                "release" -> "wepin-login-v${project.extra["wepinAndroidSdkVersion"]}.aar"
+                "debug" -> "debug-wepin-login-v${project.extra["wepinAndroidSdkVersion"]}.aar"
                 else -> throw IllegalArgumentException("Unsupported build variant: $name")
             }
         }
