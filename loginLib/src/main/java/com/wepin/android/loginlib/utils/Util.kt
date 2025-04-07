@@ -1,7 +1,7 @@
 package com.wepin.android.loginlib.utils
 
 import android.content.pm.PackageManager
-import com.wepin.android.loginLib.BuildConfig
+import com.wepin.android.loginlib.BuildConfig
 import org.mindrot.jbcrypt.BCrypt
 
 fun getVersionMetaDataValue(): String {

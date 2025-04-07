@@ -8,7 +8,7 @@ val sdkVersion = project.findProperty("wepinAndroidSdkVersion") ?: "LOCAL-SNAPSH
 rootProject.extra["wepinAndroidSdkVersion"] = sdkVersion
 
 android {
-    namespace = "com.wepin.android.loginLib"
+    namespace = "com.wepin.android.loginlib"
     compileSdk = 34
 
     defaultConfig {

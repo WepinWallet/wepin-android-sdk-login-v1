@@ -6,7 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import com.wepin.android.commonlib.error.WepinError
-import com.wepin.android.loginLib.R
+import com.wepin.android.loginlib.R
 import com.wepin.android.loginlib.manager.WepinLoginManager
 import com.wepin.android.loginlib.types.OauthTokenParam
 import com.wepin.android.loginlib.types.OauthTokenType
