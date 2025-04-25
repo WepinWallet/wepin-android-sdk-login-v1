@@ -65,15 +65,9 @@ dependencies {
 
     //Wepin
 //    api(project(":libs:common:commonLib"))
-//    implementation(project(":libs:network:networkLib"))
-//    implementation(project(":libs:storage:storageLib"))
-//    implementation(project(":libs:session:sessionLib"))
-
+//    implementation(project(":libs:core:coreLib"))
     api("io.wepin:wepin-android-sdk-common-v1:${sdkVersion}")
-    implementation("io.wepin:wepin-android-sdk-network-v1:${sdkVersion}")
-    implementation("io.wepin:wepin-android-sdk-storage-v1:${sdkVersion}")
-    implementation("io.wepin:wepin-android-sdk-session-v1:${sdkVersion}")
-
+    implementation("io.wepin:wepin-android-sdk-core-v1:${sdkVersion}")
 
     // ECDSA
 //    implementation("org.bitcoinj:bitcoinj-core:0.15.10")

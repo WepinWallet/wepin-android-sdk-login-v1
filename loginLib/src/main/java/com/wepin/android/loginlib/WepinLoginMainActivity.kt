@@ -6,15 +6,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import com.wepin.android.commonlib.error.WepinError
-import com.wepin.android.loginlib.R
+import com.wepin.android.core.types.wepin.OAuthProviderInfo
+import com.wepin.android.core.utils.Log
+import com.wepin.android.loginlib.error.getOauthErrorCode
+import com.wepin.android.loginlib.error.getOauthErrorMessage
 import com.wepin.android.loginlib.manager.WepinLoginManager
 import com.wepin.android.loginlib.types.OauthTokenParam
 import com.wepin.android.loginlib.types.OauthTokenType
-import com.wepin.android.networklib.types.wepin.OAuthProviderInfo
-import com.wepin.android.storage.utils.Log
 import net.openid.appauth.AuthState
 import net.openid.appauth.AuthorizationException
-import net.openid.appauth.AuthorizationException.GeneralErrors.USER_CANCELED_AUTH_FLOW
 import net.openid.appauth.AuthorizationRequest
 import net.openid.appauth.AuthorizationResponse
 import net.openid.appauth.AuthorizationService
@@ -27,7 +27,9 @@ internal class WepinLoginMainActivity : ComponentActivity() {
     private var authService: AuthorizationService? = null
     private var authState: AuthState? = null
 
-    private val wepinLoginManager = WepinLoginManager.getInstance()
+    private val wepinLoginManager: WepinLoginManager by lazy {
+        WepinLogin.temporaryLoginManager ?: throw IllegalStateException("LoginManager is null")
+    }
     private var redirectUri: Uri? = null
     private var provider: String? = null
     private var clientId: String? = null
@@ -45,6 +47,7 @@ internal class WepinLoginMainActivity : ComponentActivity() {
         handleAuthResult(resp, ex)
         authService?.customTabManager?.dispose()
         finish()
+        WepinLogin.temporaryLoginManager = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -132,16 +135,14 @@ internal class WepinLoginMainActivity : ComponentActivity() {
 
         when {
             ex != null -> {
-                if (ex == USER_CANCELED_AUTH_FLOW) {
-                    wepinLoginManager.loginHelper?.handleOAuthError(
-                        WepinError(
-                            WepinError.Companion.ErrorCode.FAILED_LOGIN.ordinal,
-                            "user_canceled"
-                        )
+                val code = getOauthErrorCode(ex, "authorization_fail")
+                val message = getOauthErrorMessage(ex)
+                wepinLoginManager.loginHelper?.handleOAuthError(
+                    WepinError(
+                        WepinError.Companion.ErrorCode.FAILED_LOGIN.ordinal,
+                        "$code - $message"
                     )
-                } else {
-                    wepinLoginManager.loginHelper?.handleOAuthError(ex)
-                }
+                )
             }
 
             resp == null -> {

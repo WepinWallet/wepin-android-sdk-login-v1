@@ -103,8 +103,8 @@ class WepinLoginViewModel(application: Application) : AndroidViewModel(applicati
     fun signUpWithEmail() {
         Log.d(TAG, "signUpWithEmail")
         val params = LoginWithEmailParams(
-            email = "8856d4f3ff1f@drmail.in",
-            password = "doublebk13!@",
+            email = "email",
+            password = "password",
             locale = "ko"
         )
         wepinLogin?.signUpWithEmailAndPassword(params)?.whenComplete { result, error ->
@@ -119,8 +119,8 @@ class WepinLoginViewModel(application: Application) : AndroidViewModel(applicati
 
     fun loginWithEmail() {
         val params = LoginWithEmailParams(
-            email = "8856d4f3ff1f@drmail.in",
-            password = "doublebk13!@"
+            email = "email",
+            password = "password"
         )
         wepinLogin?.loginWithEmailAndPassword(params)?.whenComplete { result, error ->
             if (error != null) {

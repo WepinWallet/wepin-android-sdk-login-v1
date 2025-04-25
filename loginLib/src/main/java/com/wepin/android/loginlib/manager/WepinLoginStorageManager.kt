@@ -5,12 +5,13 @@ import com.wepin.android.commonlib.types.WepinToken
 import com.wepin.android.commonlib.types.WepinUser
 import com.wepin.android.commonlib.types.WepinUserInfo
 import com.wepin.android.commonlib.types.WepinUserStatus
+import com.wepin.android.core.storage.WepinStorageManager
+import com.wepin.android.core.types.storage.StorageDataType
+import com.wepin.android.core.types.storage.UserInfoDetails
+import com.wepin.android.core.types.wepin.LoginResponse
+import com.wepin.android.core.utils.Log
 import com.wepin.android.loginlib.types.LoginResult
 import com.wepin.android.loginlib.types.Providers
-import com.wepin.android.networklib.types.wepin.LoginResponse
-import com.wepin.android.storage.WepinStorageManager
-import com.wepin.android.storage.types.StorageDataType
-import com.wepin.android.storage.types.UserInfoDetails
 
 object WepinLoginStorageManager {
 

@@ -3,7 +3,6 @@ package com.wepin.android.loginlib
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import com.wepin.android.loginlib.R
 
 class RedirectUriReceiverActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

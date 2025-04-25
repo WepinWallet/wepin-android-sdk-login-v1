@@ -1,17 +1,20 @@
 package com.wepin.android.loginlib.manager
 
+import android.content.Context
 import com.wepin.android.commonlib.WepinCommon
 import com.wepin.android.commonlib.types.WepinUser
+import com.wepin.android.core.WepinCoreManager
+import com.wepin.android.core.network.WepinFirebase
+import com.wepin.android.core.network.WepinNetwork
+import com.wepin.android.core.utils.Log
 import com.wepin.android.loginlib.appAuth.LoginHelper
 import com.wepin.android.loginlib.types.LoginOauthResult
 import com.wepin.android.loginlib.types.LoginResult
-import com.wepin.android.networklib.WepinFirebase
-import com.wepin.android.networklib.WepinNetwork
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CompletableFuture
 
-internal class WepinLoginManager private constructor() {
+internal class WepinLoginManager {
     private val TAG = this.javaClass.name
 
     //    private var contextRef: WeakReference<Context>? = null
@@ -26,26 +29,33 @@ internal class WepinLoginManager private constructor() {
     internal val redirectUrl: String
         get() = loginHelper?.appAuthRedirectUrl ?: throw IllegalStateException("Not initialized")
 
-    companion object {
-        @Volatile
-        private var instance: WepinLoginManager? = null
+    fun init(
+        context: Context,
+        appKey: String,
+        appId: String,
+        platform: String = "android"
+    ): CompletableFuture<Unit> {
+        Log.d(TAG, "loginManager init")
+//        val sdkType = "${platform}-login"
+        val initFuture = CompletableFuture<Unit>()
 
-        fun getInstance(): WepinLoginManager =
-            instance ?: synchronized(this) {
-                instance ?: WepinLoginManager().also { instance = it }
+        val sdkType = "$platform-login"
+
+        WepinCoreManager.initialize(context, appId, appKey, platform, sdkType)
+            .thenAccept {
+                wepinNetwork = WepinCoreManager.getNetwork()
+                wepinFirebase = WepinCoreManager.getFirebase()
+
+                loginHelper = LoginHelper(wepinNetwork!!, wepinFirebase!!, completableFutureManager)
+                loginHelper?.init(buildRedirectUrl(appKey, appId))
+
+                initFuture.complete(Unit)
+            }.exceptionally { error ->
+                initFuture.completeExceptionally(error)
+                null
             }
-    }
 
-    fun init(appKey: String, appId: String) {
-        _appKey = appKey
-        _appId = appId
-
-        // Get the already initialized WepinNetwork instance
-        wepinNetwork = WepinNetwork.getInstance()
-        wepinFirebase = WepinFirebase.getInstance()
-
-        loginHelper = LoginHelper(wepinNetwork!!, wepinFirebase!!, completableFutureManager)
-        loginHelper?.init(buildRedirectUrl(appKey, appId))
+        return initFuture
     }
 
     fun initCompletableFuture() {
@@ -72,6 +82,7 @@ internal class WepinLoginManager private constructor() {
     }
 
     fun clear() {
+        WepinCoreManager.clear()
         wepinNetwork = null
         wepinFirebase = null
         loginHelper = null

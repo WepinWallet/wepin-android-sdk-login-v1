@@ -2,6 +2,20 @@ package com.wepin.android.loginlib.appAuth
 
 import com.wepin.android.commonlib.error.WepinError
 import com.wepin.android.commonlib.types.WepinUser
+import com.wepin.android.core.network.WepinFirebase
+import com.wepin.android.core.network.WepinNetwork
+import com.wepin.android.core.storage.WepinStorageManager
+import com.wepin.android.core.types.firebase.EmailAndPasswordRequest
+import com.wepin.android.core.types.firebase.GetRefreshIdTokenRequest
+import com.wepin.android.core.types.firebase.ResetPasswordRequest
+import com.wepin.android.core.types.firebase.VerifyEmailRequest
+import com.wepin.android.core.types.storage.StorageDataType
+import com.wepin.android.core.types.wepin.OAuthTokenRequest
+import com.wepin.android.core.types.wepin.OAuthTokenResponse
+import com.wepin.android.core.types.wepin.PasswordStateRequest
+import com.wepin.android.core.types.wepin.VerifyRequest
+import com.wepin.android.core.types.wepin.VerifyResponse
+import com.wepin.android.core.utils.Log
 import com.wepin.android.loginlib.manager.CompletableFutureManager
 import com.wepin.android.loginlib.types.FBToken
 import com.wepin.android.loginlib.types.LoginOauthResult
@@ -11,19 +25,6 @@ import com.wepin.android.loginlib.types.OauthTokenParam
 import com.wepin.android.loginlib.types.OauthTokenType
 import com.wepin.android.loginlib.types.Providers
 import com.wepin.android.loginlib.utils.hashPassword
-import com.wepin.android.networklib.WepinFirebase
-import com.wepin.android.networklib.WepinNetwork
-import com.wepin.android.networklib.types.firebase.EmailAndPasswordRequest
-import com.wepin.android.networklib.types.firebase.GetRefreshIdTokenRequest
-import com.wepin.android.networklib.types.firebase.ResetPasswordRequest
-import com.wepin.android.networklib.types.firebase.VerifyEmailRequest
-import com.wepin.android.networklib.types.wepin.OAuthTokenRequest
-import com.wepin.android.networklib.types.wepin.OAuthTokenResponse
-import com.wepin.android.networklib.types.wepin.PasswordStateRequest
-import com.wepin.android.networklib.types.wepin.VerifyRequest
-import com.wepin.android.networklib.types.wepin.VerifyResponse
-import com.wepin.android.storage.WepinStorageManager
-import com.wepin.android.storage.types.StorageDataType
 import org.json.JSONObject
 import java.util.concurrent.CompletableFuture
 
@@ -169,7 +170,7 @@ internal class LoginHelper(
                         changePassword(
                             encryptedPassword,
                             FBToken(idToken, refreshToken)
-                        )?.thenApply { token ->
+                        ).thenApply { token ->
                             if (token != null) {
                                 WepinStorageManager.setStorage<StorageDataType>(
                                     "firebase:wepin",
@@ -241,7 +242,7 @@ internal class LoginHelper(
             }
     }
 
-    private fun changePassword(password: String, token: FBToken): CompletableFuture<FBToken?>? {
+    private fun changePassword(password: String, token: FBToken): CompletableFuture<FBToken?> {
         return networkManager.login(token.idToken).thenCompose { loginResponse ->
             firebaseNetwork.updatePassword(token.idToken, password).thenCompose { updatePWRes ->
                 val passwordStateRequest = PasswordStateRequest(false)

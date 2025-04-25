@@ -3,12 +3,20 @@ package com.wepin.android.loginlib
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.wepin.android.commonlib.error.WepinError
 import com.wepin.android.commonlib.types.LoginOauthAccessTokenRequest
 import com.wepin.android.commonlib.types.LoginOauthIdTokenRequest
 import com.wepin.android.commonlib.types.Providers
 import com.wepin.android.commonlib.types.WepinUser
+import com.wepin.android.commonlib.utils.getVersionMetaDataValue
+import com.wepin.android.core.WepinCoreManager
+import com.wepin.android.core.network.WepinNetwork
+import com.wepin.android.core.session.WepinSessionManager
+import com.wepin.android.core.storage.WepinStorageManager
+import com.wepin.android.core.types.storage.StorageDataType
+import com.wepin.android.core.types.wepin.OAuthProviderInfo
+import com.wepin.android.core.types.wepin.WepinRegex
+import com.wepin.android.core.utils.Log
 import com.wepin.android.loginlib.manager.WepinLoginManager
 import com.wepin.android.loginlib.manager.WepinLoginStorageManager
 import com.wepin.android.loginlib.types.FBToken
@@ -17,30 +25,28 @@ import com.wepin.android.loginlib.types.LoginOauthResult
 import com.wepin.android.loginlib.types.LoginResult
 import com.wepin.android.loginlib.types.LoginWithEmailParams
 import com.wepin.android.loginlib.types.WepinLoginOptions
-import com.wepin.android.loginlib.utils.getVersionMetaDataValue
-import com.wepin.android.networklib.WepinFirebase
-import com.wepin.android.networklib.WepinNetwork
-import com.wepin.android.networklib.types.wepin.OAuthProviderInfo
-import com.wepin.android.networklib.types.wepin.WepinRegex
-import com.wepin.android.sessionlib.WepinSessionManager
-import com.wepin.android.storage.WepinStorageManager
-import com.wepin.android.storage.types.StorageDataType
-import java.lang.ref.WeakReference
 import java.util.concurrent.CompletableFuture
 
-class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "android") {
+class WepinLogin(
+    wepinLoginOptions: WepinLoginOptions,
+    private var platformType: String? = "android"
+) {
     private val TAG = this.javaClass.name
     private var _isInitialized = false
-    private val contextRef: WeakReference<Context> = WeakReference(wepinLoginOptions.context)
+
+    private val context: Context = wepinLoginOptions.context
     private val _appKey: String = wepinLoginOptions.appKey
     private val _appId: String = wepinLoginOptions.appId
-    private val _platformType: String = platformType ?: "android"
-    private val _wepinLoginManager: WepinLoginManager = WepinLoginManager.getInstance()
+    private var _wepinLoginManager: WepinLoginManager? = null
     private var _wepinSessionManager: WepinSessionManager? = null
     private var _wepinNetwork: WepinNetwork? = null
     private var _providerInfo: Array<OAuthProviderInfo>? = null
     private var _regex: WepinRegex? = null
     val version: String = getVersionMetaDataValue()
+
+    companion object {
+        internal var temporaryLoginManager: WepinLoginManager? = null
+    }
 
     fun init(): CompletableFuture<Boolean> {
         Log.d(TAG, "init")
@@ -52,52 +58,22 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 return wepinCompletableFuture
             }
 
-            val context = contextRef.get() ?: run {
-                wepinCompletableFuture.completeExceptionally(WepinError.generalUnKnownEx("Invalid Context"))
-                return wepinCompletableFuture
-            }
-
             if (context !is Activity) {
                 wepinCompletableFuture.completeExceptionally(WepinError.NOT_ACTIVITY)
                 return wepinCompletableFuture
             }
 
-            // Step 1: Initialize WepinNetwork
-            WepinNetwork.initialize(
-                context,
-                _appKey,
-                context.packageName,
-                "$_platformType-login",
-                version
+            _wepinLoginManager = WepinLoginManager()
+            _wepinLoginManager!!.init(
+                context = context,
+                appKey = _appKey,
+                appId = _appId,
+                platform = platformType ?: "android"
             )
-                .thenCompose { network ->
-                    _wepinNetwork = network
-                    Log.d(TAG, "WepinNetwork initialized")
+                .thenAccept {
+                    _wepinNetwork = WepinCoreManager.getNetwork()
+                    _wepinSessionManager = WepinCoreManager.getSession()
 
-                    // Step 2: Get Firebase Config
-                    network.getFirebaseConfig()
-                }
-                .thenCompose { configRes ->
-                    // Step 3: Initialize WepinFirebase
-                    WepinFirebase.initialize(context, configRes)
-                }
-                .thenAccept { firebase ->
-                    Log.d(TAG, "WepinFirebase initialized")
-
-                    // Step 4: Initialize LoginManager
-                    _wepinLoginManager.init(_appKey, _appId)
-
-                    // Step 5: Initialize SessionManager
-                    WepinSessionManager.initialize()
-                    _wepinSessionManager = WepinSessionManager.getInstance()
-                    _wepinSessionManager?.setNetworkAndFirebase(_wepinNetwork!!, firebase)
-                    Log.d(TAG, "SessionManager initialized")
-
-                    // Step 6: Initialize StorageManager
-                    WepinStorageManager.init(context, _appId)
-                    Log.d(TAG, "StorageManager initialized")
-
-                    // Step 7: Get provider info, regex, and app info
                     val providerFuture = _wepinNetwork?.getOAuthProviderInfo()
                     val regexFuture = _wepinNetwork?.getRegex()
                     val appInfoFuture = _wepinNetwork?.getAppInfo()
@@ -113,16 +89,22 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                         .exceptionally { error ->
                             _isInitialized = false
                             wepinCompletableFuture.completeExceptionally(error)
-                            null
+//                            null
                         }
                 }
-                .exceptionally { error ->
-                    finalize()
+                .exceptionally {
+                    _wepinNetwork = null
+                    _wepinSessionManager = null
+                    _wepinLoginManager =  null
+                    _isInitialized = false
                     wepinCompletableFuture.completeExceptionally(WepinError.NOT_INITIALIZED_ERROR)
                     null
                 }
         } catch (e: Exception) {
-            finalize()
+            _wepinNetwork = null
+            _wepinSessionManager = null
+            _wepinLoginManager =  null
+            _isInitialized = false
             wepinCompletableFuture.completeExceptionally(WepinError.NOT_INITIALIZED_ERROR)
         }
         return wepinCompletableFuture
@@ -133,18 +115,14 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
     fun loginWithOauthProvider(params: LoginOauth2Params): CompletableFuture<LoginOauthResult> {
         try {
             validateLoginRequest(true)
-            _wepinLoginManager.initCompletableFuture()
+            _wepinLoginManager?.initCompletableFuture()
 
             val provider = _providerInfo?.find { it.isSupportProvider(params.provider) }
                 ?: return CompletableFuture<LoginOauthResult>().apply {
                     completeExceptionally(WepinError.INVALID_LOGIN_PROVIDER)
                 }
 
-            val context = contextRef.get() ?: run {
-                return CompletableFuture<LoginOauthResult>().apply {
-                    completeExceptionally(WepinError.generalUnKnownEx("Invalid Context"))
-                }
-            }
+            temporaryLoginManager = _wepinLoginManager
             val intent = Intent(context, WepinLoginMainActivity::class.java).apply {
                 putExtra("providerInfo", provider)
                 putExtra("clientId", params.clientId)
@@ -152,7 +130,10 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
 
             (context as Activity).startActivity(intent)
 
-            return _wepinLoginManager.getLoginOAuthFuture()
+            return _wepinLoginManager?.getLoginOAuthFuture()
+                ?: CompletableFuture<LoginOauthResult>().apply {
+                    completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+                }
         } catch (e: Exception) {
             return CompletableFuture<LoginOauthResult>().apply {
                 completeExceptionally(e)
@@ -168,14 +149,18 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
         if (params.email.isEmpty() || !_regex!!.validateEmail(params.email)) {
-            _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INCORRECT_EMAIL_FORM)
-            return _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_EMAIL_FORM)
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+            }
         }
         if (params.password.isEmpty() || !_regex!!.validatePassword(params.password)) {
-            _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INCORRECT_PASSWORD_FORM)
-            return _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_PASSWORD_FORM)
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+            }
         }
 
         return _wepinNetwork?.checkEmailExist(params.email)
@@ -184,12 +169,12 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                     && checkEmailResponse.isEmailverified
                     && checkEmailResponse.providerIds.contains("password")
                 ) {
-                    _wepinLoginManager.loginHelper?.handleLoginError(WepinError.EXISTED_EMAIL)
+                    _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.EXISTED_EMAIL)
 
                 } else {
-                    _wepinLoginManager.loginHelper?.verifySignUpFirebase(params)
+                    _wepinLoginManager?.loginHelper?.verifySignUpFirebase(params)
                 }
-                _wepinLoginManager.getLoginFuture()
+                _wepinLoginManager?.getLoginFuture()
             } ?: CompletableFuture<LoginResult>().apply {
             completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
         }
@@ -203,16 +188,20 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
 
         if (params.email.isEmpty() || !_regex!!.validateEmail(params.email)) {
-            _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INCORRECT_EMAIL_FORM)
-            return _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_EMAIL_FORM)
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.INCORRECT_EMAIL_FORM)
+            }
         }
 
         if (params.password.isEmpty() || !_regex!!.validatePassword(params.password)) {
-            _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INCORRECT_PASSWORD_FORM)
-            return _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_PASSWORD_FORM)
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.INCORRECT_PASSWORD_FORM)
+            }
         }
 
         return _wepinNetwork?.checkEmailExist(params.email)?.thenCompose { checkEmailResponse ->
@@ -220,14 +209,14 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                     "password"
                 )
             ) {
-                _wepinLoginManager.loginHelper?.loginWithEmailAndResetPasswordState(
+                _wepinLoginManager?.loginHelper?.loginWithEmailAndResetPasswordState(
                     params.email,
                     params.password
                 )
             } else {
-                _wepinLoginManager.loginHelper?.handleLoginError(WepinError.REQUIRED_SIGNUP_EMAIL)
+                _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.REQUIRED_SIGNUP_EMAIL)
             }
-            _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.getLoginFuture()
         } ?: CompletableFuture<LoginResult>().apply {
             completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
         }
@@ -241,19 +230,19 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
 
         WepinStorageManager.deleteAllStorage()
         return _wepinNetwork?.loginOAuthIdToken(params)?.thenCompose { loginResponse ->
             if (loginResponse.token != null) {
-                _wepinLoginManager.loginHelper?.doFirebaseLoginWithCustomToken(
+                _wepinLoginManager?.loginHelper?.doFirebaseLoginWithCustomToken(
                     loginResponse.token!!,
                     "external_token"
                 )
             } else {
-                _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
+                _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
             }
-            _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.getLoginFuture()
         } ?: CompletableFuture<LoginResult>().apply {
             completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
         }
@@ -267,27 +256,29 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
 
         val provider = _providerInfo?.find { provider ->
             provider.provider == params.provider && !provider.supportIdToken()
         }
         if (provider == null) {
-            _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_PROVIDER)
-            return _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_PROVIDER)
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.INVALID_LOGIN_PROVIDER)
+            }
         }
 
         WepinStorageManager.deleteAllStorage()
         return _wepinNetwork?.loginOAuthAccessToken(params)?.thenCompose { loginResponse ->
             if (loginResponse.token != null) {
-                _wepinLoginManager.loginHelper?.doFirebaseLoginWithCustomToken(
+                _wepinLoginManager?.loginHelper?.doFirebaseLoginWithCustomToken(
                     loginResponse.token!!,
                     "external_token"
                 )
             } else {
-                _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
+                _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
             }
-            _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.getLoginFuture()
         } ?: CompletableFuture<LoginResult>().apply {
             completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
         }
@@ -301,21 +292,25 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
 
         if (prevFBToken != null) {
-            _wepinLoginManager.loginHelper?.getRefreshIdToken(
+            _wepinLoginManager?.loginHelper?.getRefreshIdToken(
                 prevFBToken.provider,
                 prevFBToken.token.refreshToken
             )
 
-            return _wepinLoginManager.getLoginFuture()
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+            }
         }
         val sessionFuture = _wepinSessionManager?.checkExistFirebaseLoginSession()
 
         if (sessionFuture == null) {
-            _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_SESSION)
-            return _wepinLoginManager.getLoginFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_SESSION)
+            return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+                completeExceptionally(WepinError.INVALID_LOGIN_SESSION)
+            }
         }
 
         sessionFuture.thenAccept { result ->
@@ -323,9 +318,9 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 val token =
                     WepinStorageManager.getStorage<StorageDataType.FirebaseWepin>("firebase:wepin")
                 if (token == null) {
-                    _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_SESSION)
+                    _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_SESSION)
                 } else {
-                    _wepinLoginManager.loginHelper?.handleLoginResult(
+                    _wepinLoginManager?.loginHelper?.handleLoginResult(
                         LoginResult(
                             provider = Providers.fromValue(token.provider)!!,
                             token = FBToken(
@@ -336,10 +331,12 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                     )
                 }
             } else {
-                _wepinLoginManager.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_SESSION)
+                _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_LOGIN_SESSION)
             }
         }
-        return _wepinLoginManager.getLoginFuture()
+        return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
+            completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+        }
     }
 
     fun loginWepin(params: LoginResult): CompletableFuture<WepinUser> {
@@ -350,17 +347,20 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
 
         if (params.token.idToken.isEmpty() || params.token.refreshToken.isEmpty()) {
-            _wepinLoginManager.loginHelper?.handleLoginWepinError(WepinError.INVALID_PARAMETER)
-            return _wepinLoginManager.getWepinUserFuture()
+            _wepinLoginManager?.loginHelper?.handleLoginWepinError(WepinError.INVALID_PARAMETER)
+            return _wepinLoginManager?.getWepinUserFuture()
+                ?: CompletableFuture<WepinUser>().apply {
+                    completeExceptionally(WepinError.INVALID_PARAMETER)
+                }
         }
 
-        _wepinLoginManager.wepinNetwork?.login(params.token.idToken)
+        _wepinLoginManager?.wepinNetwork?.login(params.token.idToken)
             ?.whenComplete { loginResponse, error ->
                 if (error != null) {
-                    _wepinLoginManager.loginHelper?.handleLoginWepinError(WepinError("${error.message}"))
+                    _wepinLoginManager?.loginHelper?.handleLoginWepinError(WepinError("${error.message}"))
                 } else {
                     WepinLoginStorageManager.setWepinUser(
                         params,
@@ -369,13 +369,15 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                     val wepinUser = WepinLoginStorageManager.getWepinUser()
 
                     if (wepinUser != null) {
-                        _wepinLoginManager.loginHelper?.handleLoginWepinResult(wepinUser)
+                        _wepinLoginManager?.loginHelper?.handleLoginWepinResult(wepinUser)
                     } else {
-                        _wepinLoginManager.loginHelper?.handleLoginWepinError(WepinError.FAILED_LOGIN)
+                        _wepinLoginManager?.loginHelper?.handleLoginWepinError(WepinError.FAILED_LOGIN)
                     }
                 }
             }
-        return _wepinLoginManager.getWepinUserFuture()
+        return _wepinLoginManager?.getWepinUserFuture() ?: CompletableFuture<WepinUser>().apply {
+            completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+        }
     }
 
     fun getCurrentWepinUser(): CompletableFuture<WepinUser> {
@@ -387,22 +389,28 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
                 completeExceptionally(error)
             }
         }
-        _wepinLoginManager.initCompletableFuture()
+        _wepinLoginManager?.initCompletableFuture()
 
         try {
             _wepinSessionManager?.checkLoginStatusAndGetLifeCycle()?.thenApply {}
 
             val wepinUser = _wepinSessionManager?.getWepinUser()
             if (wepinUser != null) {
-                _wepinLoginManager.loginHelper?.handleLoginWepinResult(wepinUser)
+                _wepinLoginManager?.loginHelper?.handleLoginWepinResult(wepinUser)
             } else {
-                _wepinLoginManager.loginHelper?.handleLoginWepinError(WepinError.INVALID_LOGIN_SESSION)
+                _wepinLoginManager?.loginHelper?.handleLoginWepinError(WepinError.INVALID_LOGIN_SESSION)
             }
-            return _wepinLoginManager.getWepinUserFuture()
+            return _wepinLoginManager?.getWepinUserFuture()
+                ?: CompletableFuture<WepinUser>().apply {
+                    completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+                }
         } catch (error: Exception) {
-            if (error is WepinError) _wepinLoginManager.loginHelper?.handleLoginWepinError(error)
-            else _wepinLoginManager.loginHelper?.handleLoginWepinError(WepinError.INVALID_LOGIN_SESSION)
-            return _wepinLoginManager.getWepinUserFuture()
+            if (error is WepinError) _wepinLoginManager?.loginHelper?.handleLoginWepinError(error)
+            else _wepinLoginManager?.loginHelper?.handleLoginWepinError(WepinError.INVALID_LOGIN_SESSION)
+            return _wepinLoginManager?.getWepinUserFuture()
+                ?: CompletableFuture<WepinUser>().apply {
+                    completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+                }
         }
     }
 
@@ -449,8 +457,8 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
         if (!_isInitialized) {
             throw WepinError.NOT_INITIALIZED_ERROR
         }
-        val context = contextRef.get() ?: run {
-            throw WepinError.generalUnKnownEx("Invalid Context")
+        if (_wepinLoginManager == null) {
+            throw WepinError.NOT_INITIALIZED_ERROR
         }
         Log.d(TAG, "it's initialized")
         if (withContext && context !is Activity) {
@@ -462,10 +470,15 @@ class WepinLogin(wepinLoginOptions: WepinLoginOptions, platformType: String? = "
         }
     }
 
-    fun finalize() {
-        _wepinSessionManager?.finalize()
+    fun finalize(): Boolean {
+        if (!_isInitialized) {
+            throw WepinError.NOT_INITIALIZED_ERROR
+        }
         _wepinSessionManager = null
-        _wepinLoginManager.clear()
+        _wepinNetwork = null
+        _wepinLoginManager?.clear()
+        _wepinLoginManager = null
         _isInitialized = false
+        return true
     }
 }
