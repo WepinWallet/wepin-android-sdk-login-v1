@@ -8,7 +8,6 @@ import com.wepin.android.commonlib.types.LoginOauthAccessTokenRequest
 import com.wepin.android.commonlib.types.LoginOauthIdTokenRequest
 import com.wepin.android.commonlib.types.Providers
 import com.wepin.android.commonlib.types.WepinUser
-import com.wepin.android.commonlib.utils.getVersionMetaDataValue
 import com.wepin.android.core.WepinCoreManager
 import com.wepin.android.core.network.WepinNetwork
 import com.wepin.android.core.session.WepinSessionManager
@@ -17,6 +16,7 @@ import com.wepin.android.core.types.storage.StorageDataType
 import com.wepin.android.core.types.wepin.OAuthProviderInfo
 import com.wepin.android.core.types.wepin.WepinRegex
 import com.wepin.android.core.utils.Log
+import com.wepin.android.core.utils.getVersionMetaDataValue
 import com.wepin.android.loginlib.manager.WepinLoginManager
 import com.wepin.android.loginlib.manager.WepinLoginStorageManager
 import com.wepin.android.loginlib.types.FBToken
