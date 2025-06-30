@@ -41,7 +41,11 @@ class WepinLogin(
     private var _wepinSessionManager: WepinSessionManager? = null
     private var _wepinNetwork: WepinNetwork? = null
     private var _providerInfo: Array<OAuthProviderInfo>? = null
-    private var _regex: WepinRegex? = null
+    var regex: WepinRegex = WepinRegex(
+        email = "[a-z0-9!#\$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#\$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?",
+        password = "^(?=.*[a-zA-Z])(?=.*[0-9]).{8,128}\$",
+        pin = "^\\d{6,8}\$"
+    )
     val version: String = getVersionMetaDataValue()
 
     companion object {
@@ -76,36 +80,50 @@ class WepinLogin(
 
                     val providerFuture = _wepinNetwork?.getOAuthProviderInfo()
                     val regexFuture = _wepinNetwork?.getRegex()
-                    val appInfoFuture = _wepinNetwork?.getAppInfo()
 
-                    CompletableFuture.allOf(providerFuture, regexFuture, appInfoFuture)
+                    CompletableFuture.allOf(providerFuture, regexFuture)
                         .thenApply {
                             _providerInfo = providerFuture?.get()
-                            _regex = regexFuture?.get()
-                            val infoResponse = appInfoFuture?.get()
-                            _isInitialized = infoResponse !== null
+                            regex = regexFuture?.get()!!
+                            _isInitialized = true
                             wepinCompletableFuture.complete(_isInitialized)
                         }
                         .exceptionally { error ->
+                            WepinCoreManager.clear()
+                            _wepinNetwork = null
+                            _wepinSessionManager = null
+                            _wepinLoginManager = null
                             _isInitialized = false
                             wepinCompletableFuture.completeExceptionally(error)
-//                            null
+                            null
                         }
                 }
-                .exceptionally {
+                .exceptionally { error ->
+                    WepinCoreManager.clear()
                     _wepinNetwork = null
                     _wepinSessionManager = null
-                    _wepinLoginManager =  null
+                    _wepinLoginManager = null
                     _isInitialized = false
-                    wepinCompletableFuture.completeExceptionally(WepinError.NOT_INITIALIZED_ERROR)
+                    val actualError = if (error.cause is WepinError) {
+                        error.cause
+                    } else {
+                        WepinError.NOT_INITIALIZED_ERROR
+                    }
+                    wepinCompletableFuture.completeExceptionally(actualError)
                     null
                 }
         } catch (e: Exception) {
+            WepinCoreManager.clear()
             _wepinNetwork = null
             _wepinSessionManager = null
-            _wepinLoginManager =  null
+            _wepinLoginManager = null
             _isInitialized = false
-            wepinCompletableFuture.completeExceptionally(WepinError.NOT_INITIALIZED_ERROR)
+            val actualError = if (e.cause is WepinError) {
+                e.cause
+            } else {
+                WepinError.NOT_INITIALIZED_ERROR
+            }
+            wepinCompletableFuture.completeExceptionally(actualError)
         }
         return wepinCompletableFuture
     }
@@ -150,13 +168,13 @@ class WepinLogin(
             }
         }
         _wepinLoginManager?.initCompletableFuture()
-        if (params.email.isEmpty() || !_regex!!.validateEmail(params.email)) {
+        if (params.email.isEmpty() || !regex.validateEmail(params.email)) {
             _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_EMAIL_FORM)
             return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
                 completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
             }
         }
-        if (params.password.isEmpty() || !_regex!!.validatePassword(params.password)) {
+        if (params.password.isEmpty() || !regex.validatePassword(params.password)) {
             _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_PASSWORD_FORM)
             return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
                 completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
@@ -189,15 +207,14 @@ class WepinLogin(
             }
         }
         _wepinLoginManager?.initCompletableFuture()
-
-        if (params.email.isEmpty() || !_regex!!.validateEmail(params.email)) {
+        if (params.email.isEmpty() || !regex.validateEmail(params.email)) {
             _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_EMAIL_FORM)
             return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
                 completeExceptionally(WepinError.INCORRECT_EMAIL_FORM)
             }
         }
 
-        if (params.password.isEmpty() || !_regex!!.validatePassword(params.password)) {
+        if (params.password.isEmpty() || !regex.validatePassword(params.password)) {
             _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INCORRECT_PASSWORD_FORM)
             return _wepinLoginManager?.getLoginFuture() ?: CompletableFuture<LoginResult>().apply {
                 completeExceptionally(WepinError.INCORRECT_PASSWORD_FORM)
@@ -233,15 +250,31 @@ class WepinLogin(
         _wepinLoginManager?.initCompletableFuture()
 
         WepinStorageManager.deleteAllStorage()
-        return _wepinNetwork?.loginOAuthIdToken(params)?.thenCompose { loginResponse ->
-            if (loginResponse.token != null) {
-                _wepinLoginManager?.loginHelper?.doFirebaseLoginWithCustomToken(
-                    loginResponse.token!!,
-                    "external_token"
-                )
+        return _wepinNetwork?.loginOAuthIdToken(params)?.whenComplete { loginResponse, throwable ->
+            if (throwable == null) {
+                if (loginResponse?.token != null) {
+                    _wepinLoginManager?.loginHelper?.doFirebaseLoginWithCustomToken(
+                        loginResponse.token!!,
+                        "external_token"
+                    )
+                } else {
+                    _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
+                }
             } else {
-                _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
+                if (throwable.message?.contains("no_email") == true) {
+                    _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.REQUIRED_SIGNUP_EMAIL)
+                } else if (throwable is WepinError) {
+                    _wepinLoginManager?.loginHelper?.handleLoginError(throwable)
+                } else {
+                    _wepinLoginManager?.loginHelper?.handleLoginError(
+                        WepinError(
+                            WepinError.FAILED_LOGIN.code,
+                            throwable.message ?: "Login With IdToken failed"
+                        )
+                    )
+                }
             }
+        }?.let {
             _wepinLoginManager?.getLoginFuture()
         } ?: CompletableFuture<LoginResult>().apply {
             completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
@@ -269,18 +302,37 @@ class WepinLogin(
         }
 
         WepinStorageManager.deleteAllStorage()
-        return _wepinNetwork?.loginOAuthAccessToken(params)?.thenCompose { loginResponse ->
-            if (loginResponse.token != null) {
-                _wepinLoginManager?.loginHelper?.doFirebaseLoginWithCustomToken(
-                    loginResponse.token!!,
-                    "external_token"
-                )
-            } else {
-                _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
-            }
-            _wepinLoginManager?.getLoginFuture()
-        } ?: CompletableFuture<LoginResult>().apply {
+
+        return _wepinNetwork?.loginOAuthAccessToken(params)
+            ?.whenComplete { loginResponse, throwable ->
+                if (throwable == null) {
+                    if (loginResponse?.token != null) {
+                        _wepinLoginManager?.loginHelper?.doFirebaseLoginWithCustomToken(
+                            loginResponse.token!!,
+                            "external_token"
+                        )
+                    } else {
+                        _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.INVALID_TOKEN)
+                    }
+                } else {
+                    if (throwable.message?.contains("no_email") == true) {
+                        _wepinLoginManager?.loginHelper?.handleLoginError(WepinError.REQUIRED_SIGNUP_EMAIL)
+                    } else if (throwable is WepinError) {
+                        _wepinLoginManager?.loginHelper?.handleLoginError(throwable)
+                    } else {
+                        _wepinLoginManager?.loginHelper?.handleLoginError(
+                            WepinError(
+                                WepinError.FAILED_LOGIN.code,
+                                throwable.message ?: "Login With AccessToken failed"
+                            )
+                        )
+                    }
+                }
+            }?.let {
+                _wepinLoginManager?.getLoginFuture()
+            } ?: CompletableFuture<LoginResult>().apply {
             completeExceptionally(WepinError.NOT_INITIALIZED_NETWORK)
+
         }
     }
 

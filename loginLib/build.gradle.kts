@@ -64,13 +64,8 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     //Wepin
-//    api(project(":libs:common:commonLib"))
-//    implementation(project(":libs:core:coreLib"))
     api("io.wepin:wepin-android-sdk-common-v1:${sdkVersion}")
     implementation("io.wepin:wepin-android-sdk-core-v1:${sdkVersion}")
-
-    // ECDSA
-//    implementation("org.bitcoinj:bitcoinj-core:0.15.10")
 
     // AppAuth
     implementation("net.openid:appauth:0.11.1")

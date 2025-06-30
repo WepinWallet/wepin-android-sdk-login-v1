@@ -37,8 +37,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.wepin.android.commonlib.types.LoginOauthAccessTokenRequest
-import com.wepin.android.commonlib.types.LoginOauthIdTokenRequest
 import com.wepin.android.loginlib.WepinLogin
 import com.wepin.android.loginlib.types.LoginOauth2Params
 import com.wepin.android.loginlib.types.LoginOauthResult
@@ -46,6 +44,8 @@ import com.wepin.android.loginlib.types.LoginResult
 import com.wepin.android.loginlib.types.LoginWithEmailParams
 import com.wepin.android.loginlib.types.OauthTokenType
 import com.wepin.android.loginlib.types.WepinLoginOptions
+import com.wepin.android.loginlib.types.network.LoginOauthAccessTokenRequest
+import com.wepin.android.loginlib.types.network.LoginOauthIdTokenRequest
 import com.wepin.sample.ui.theme.WepinAndroidSDKTheme
 
 class MainActivity : ComponentActivity() {
@@ -103,7 +103,7 @@ class WepinLoginViewModel(application: Application) : AndroidViewModel(applicati
     fun signUpWithEmail() {
         Log.d(TAG, "signUpWithEmail")
         val params = LoginWithEmailParams(
-            email = "email",
+            email = "email@addrest.com",
             password = "password",
             locale = "ko"
         )
@@ -119,7 +119,7 @@ class WepinLoginViewModel(application: Application) : AndroidViewModel(applicati
 
     fun loginWithEmail() {
         val params = LoginWithEmailParams(
-            email = "email",
+            email = "email@address.com",
             password = "password"
         )
         wepinLogin?.loginWithEmailAndPassword(params)?.whenComplete { result, error ->
